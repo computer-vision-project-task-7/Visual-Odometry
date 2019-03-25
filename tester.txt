@@ -1,3 +1,0 @@
-sdadawsd
-
-print("hello world")
