@@ -4,7 +4,7 @@ import time
 import numpy as np
 
 
-img = cv2.imread('images/rotated_chessboard.jpg', 0)
+img = cv2.imread('images/skyline_toronto.jpg', 0)
 
 #resize for speed, change the values for fx and fy to scale. e.i fx=fy=0.5.
 scale_factor = 1
@@ -18,7 +18,7 @@ img = cv2.resize(img, (0,0), fx=scale_factor, fy=scale_factor)
 print('Scale factor: {}, Shape of scaled image: {}'.format(scale_factor, img.shape))
 
 t = time.time()
-img_corner, corners = corner_detector(img, k=0.06, patch_size=3, threshold=4e9)
+img_corner, corners = corner_detector(img, k=0.06, patch_size=3, threshold=0)
 print("Corner detection took: ", time.time()-t)
 print("FPS: ", 1/(time.time()-t))
 
