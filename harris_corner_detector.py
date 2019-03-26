@@ -1,6 +1,7 @@
 import numpy as np 
 import cv2
 
+
 def get_grads(img):
 	grad_x = cv2.Sobel(img,cv2.CV_64F,1,0,ksize=3)
 	grad_y = cv2.Sobel(img,cv2.CV_64F,0,1,ksize=3)
@@ -13,8 +14,6 @@ def corner_detector(image, k=0.06, patch_size=3, threshold_div_factor=1e4):
 	input parameter: grayscale image
 	output: image with corner features and corners [x,y, R]
 	"""
-	#show input grayscale image
-	#cv2.imshow('Image', image)
 
 	#calculate image intensity gradients
 	I_x, I_y = get_grads(image)
@@ -46,4 +45,5 @@ def corner_detector(image, k=0.06, patch_size=3, threshold_div_factor=1e4):
 		new_img.itemset((x, y, 0), 0)
 		new_img.itemset((x, y, 1), 0)
 		new_img.itemset((x, y, 2), 255)
+	corners = sorted(corners, key=lambda x : x[0], reverse=True)	
 	return new_img, corners		
