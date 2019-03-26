@@ -5,7 +5,7 @@ from pyflann import *
 from typing import Tuple, List
 from math import sin, cos, pi, sqrt
 from collections import defaultdict
-from
+from harrisdetector import get_grads
 
 flann = FLANN()
 
@@ -91,8 +91,9 @@ class KLTTracker:
              You should try to implement this without using any loops,
              other than this iteration loop. Otherwise it will be very slow.
             """
-            delta_p = get
-
+            # gradientene
+            Ix, Iy = get_grads(img)
+            grad_I = np.array( [Ix, Iy] )
 
 
             raise NotImplementedError
@@ -108,6 +109,7 @@ class PointTracker:
         self.trackingPatchSize = tracking_patch_size
         self.currentTrackers = []
         self.nextTrackerId = 0
+
 
     def visualize(self, img: np.ndarray, draw_id=False):
         img_vis = cv2.cvtColor((img*255).astype(np.uint8), cv2.COLOR_GRAY2RGB)
@@ -130,21 +132,27 @@ class PointTracker:
 
         cv2.imshow("KLT Trackers", img_vis)
 
-    def add_new_corners(self, origin_image: np.ndarray, points_and_response_list: List[Tuple[float, np.ndarray]],
-                        min_distance=13.0) -> None:
+
+
+    def add_new_corners(self, origin_image: np.ndarray, points_and_response_list:  List[Tuple[float, np.ndarray]],
+                                                                                        min_distance=13.0) -> None:
+
         assert len(points_and_response_list) > 0, 'points_list is empty'
 
-        for i in range(len(points_and_response_list) - 1):  # Check that points_list is sorted from largest to smallest response value
+        for i in range(len(points_and_response_list) - 1):
+         # Check that points_list is sorted from largest to smallest response value
             assert points_and_response_list[i][0] >= points_and_response_list[i + 1][0], 'points_list is not sorted'
 
-        if len(self.currentTrackers) >= self.maxPoints:  # Dont do anything if we already have the maximum number of points
+        if len(self.currentTrackers) >= self.maxPoints:
+         # Dont do anything if we already have the maximum number of points
             return
 
         filtered_points = []
 
         image_height, image_width = origin_image.shape
         patch_border = sqrt(2 * self.trackingPatchSize ** 2) + 1
-        for _, point in points_and_response_list:  # Filter out points to close to the image border
+        for _, point in points_and_response_list:
+         # Filter out points to close to the image border
             pos_x, pos_y = point
             if patch_border <= pos_x < image_width - patch_border \
                     and patch_border <= pos_y < image_height - patch_border:
@@ -152,7 +160,8 @@ class PointTracker:
 
         points = filtered_points
         filtered_points = []
-        if len(self.currentTrackers) > 0:  # Filter out points to close to existing points
+        if len(self.currentTrackers) > 0:
+         # Filter out points to close to existing points
             current_points = [np.array([klt.pos_x, klt.pos_y]) for klt in self.currentTrackers]
             _, dists = flann.nn(np.array(current_points, dtype=np.int32), np.array(points, dtype=np.int32), 1)
             dists = np.sqrt(dists)
@@ -167,12 +176,13 @@ class PointTracker:
         points = points[:number_of_points_to_add]
 
         for point in points:
+            # origin_image = Template T(x)
             self.currentTrackers.append(KLTTracker(point, origin_image, self.trackingPatchSize, self.nextTrackerId))
             self.nextTrackerId += 1
 
     def track_on_image(self, img: np.ndarray, max_iterations=25) -> None:
 
-        img_dx = cv2.Scharr(img, cv2.CV_64FC1, 1, 0)
+        img_dx = cv2.Scharr(img, cv2.CV_64FC1, 1, 0)    # scharr likt sobel ( finner gradient )
         img_dy = cv2.Scharr(img, cv2.CV_64FC1, 0, 1)
         img_grad = np.stack((img_dx, img_dy), axis=-1)
 
