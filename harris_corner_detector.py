@@ -1,7 +1,5 @@
 import numpy as np 
 import cv2
-import time
-
 
 def get_grads(img):
 	grad_x = cv2.Sobel(img,cv2.CV_64F,1,0,ksize=3)
