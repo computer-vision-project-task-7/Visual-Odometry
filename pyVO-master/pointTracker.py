@@ -5,6 +5,7 @@ from pyflann import *
 from typing import Tuple, List
 from math import sin, cos, pi, sqrt
 from collections import defaultdict
+from
 
 flann = FLANN()
 
@@ -13,12 +14,14 @@ def get_warped_patch(img: np.ndarray, patch_size: int,
                      x_translation: float, y_translation: float, theta) -> np.ndarray:
     """
     Returns a warped image patch.
-    :param img: Original image.
-    :param patch_size: The size of the patch. Should be a odd number.
-    :param x_translation: The x position of the patch center.
-    :param y_translation: The y position of the patch center.
-    :param theta: The rotation of the patch in radians.
-    :return: The warped image patch.
+
+    :param img:             Original image.
+    :param patch_size:      The size of the patch. Should be a odd number.
+    :param x_translation:   The x position of the patch center.
+    :param y_translation:   The y position of the patch center.
+    :param theta:           The rotation of the patch in radians.
+
+    :return:                The warped image patch.
     """
     patch_half_size = patch_size//2
     c = cos(-theta)
@@ -67,20 +70,35 @@ class KLTTracker:
                         min_delta_length=2.5e-2, max_error=0.035) -> int:
         """
         Tracks the KLT tracker on a new grayscale image. You will need the get_warped_patch function here.
-        :param img: The image.
-        :param img_grad: The image gradient.
-        :param max_iterations: The maximum number of iterations to run.
+
+        :param img:              The image.
+        :param img_grad:         The image gradient.
+        :param max_iterations:   The maximum number of iterations to run.
         :param min_delta_length: The minimum length of the delta vector.
+
+
         If the length is shorter than this, then the optimization should stop.
-        :param max_error: The maximum error allowed for a valid track.
-        :return: Return 0 when track is successful, 1 any point of the tracking patch is outside the image,
-        2 if a invertible hessian is encountered and 3 if the final error is larger than max_error.
+
+        :param max_error:    The maximum error allowed for a valid track.
+
+        :return:         Return 0 when track is successful,
+                         1 any point of the tracking patch is outside the image,
+                         2 if a invertible hessian is encountered and 3 if the final error is larger than max_error.
         """
-
+        # for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene)
         for iteration in range(max_iterations):
-            raise NotImplementedError  # You should try to implement this without using any loops, other than this iteration loop. Otherwise it will be very slow.
+            """
+             You should try to implement this without using any loops,
+             other than this iteration loop. Otherwise it will be very slow.
+            """
+            delta_p = get
 
-        self.positionHistory.append((self.pos_x, self.pos_y, self.theta))  # Add new point to positionHistory to visualize tracking
+
+
+            raise NotImplementedError
+
+        # Add new point to positionHistory to visualize tracking
+        self.positionHistory.append((self.pos_x, self.pos_y, self.theta))
 
 
 class PointTracker:
