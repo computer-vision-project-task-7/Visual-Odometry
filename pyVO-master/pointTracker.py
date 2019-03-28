@@ -41,6 +41,7 @@ class KLTTracker:
 
     def __init__(self, initial_position: np.ndarray, origin_image: np.ndarray, patch_size, tracker_id):
         assert patch_size >= 3 and patch_size % 2 == 1, f'patch_size must be 3 or greater and be a odd number, is {patch_size}'
+        # koordinatene til features vi tracker
         self.initialPosition = initial_position
 
         self.translationX = 0.0
@@ -103,10 +104,11 @@ class KLTTracker:
              other than this iteration loop. Otherwise it will be very slow.
             """
             # notation
+            p = np.array( [self.pos_x, self.pos_y, sel.theta])
             c = np.cos(self.theta)
             s = np.sin(self.theta)
-            x = self.pos_x
-            y = self.pos_y
+            x = p[0]
+            y = p[1]
 
             # -----finne delta_p--------------
             #dW/dp = jacobian (euclidian)
@@ -124,12 +126,16 @@ class KLTTracker:
             # Template T(x)
             T = self.trackingPatch
             # I(W(x;p))
-            I_W = get_warped_patch(img, p[0], p[1], p[2])
+            I_W = get_warped_patch(img, x, y self.theta)
             # delta_p
             delta_p = np.dot(   np.dot(H_inv, I_jac),  (T-I_w)  )
             # update p
-            p  = self.initialPosition + delta_p
-
+            p  += delta_p
+            # update trans_x, trans_y, theta
+            self.translationX = p[0]
+            self.translationY = p[1]
+            self.theta        = p[3]
+            # if length og delta_p is less than min_delta_length, stop optimazation
             if(np.norm(p) < min_delta_length):
                 break
 
