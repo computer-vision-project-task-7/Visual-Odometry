@@ -78,7 +78,7 @@ class KLTTracker:
 
         **Objective:**
         Tracking KLT tracker, whom which calculates how the new image (frame n) must
-        be transformed to have same values as the first frame (frame 0) image.
+        be transformed to have same values as last frames (frame n-1) image.
 
         :param img:              The image.
         :param img_grad:         The image gradient.
@@ -95,8 +95,7 @@ class KLTTracker:
                          2 if a singular hessian is encountered
                          3 if the final error is larger than max_error.
         """
-        # initialize p = p0
-        p = self.initialPosition
+        
         # for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene )
         for iteration in range(max_iterations):
             """
@@ -104,7 +103,7 @@ class KLTTracker:
              other than this iteration loop. Otherwise it will be very slow.
             """
             # notation
-            p = np.array( [self.pos_x, self.pos_y, self.theta])
+            p = np.array( [self.pos_x, self.pos_y, sel.theta])
             c = cos(self.theta)
             s = sin(self.theta)
             x = p[0]
