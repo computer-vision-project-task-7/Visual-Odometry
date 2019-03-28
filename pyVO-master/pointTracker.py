@@ -105,8 +105,8 @@ class KLTTracker:
             """
             # notation
             p = np.array( [self.pos_x, self.pos_y, sel.theta])
-            c = np.cos(self.theta)
-            s = np.sin(self.theta)
+            c = cos(self.theta)
+            s = sin(self.theta)
             x = p[0]
             y = p[1]
 
@@ -126,15 +126,17 @@ class KLTTracker:
             # Template T(x)
             T = self.trackingPatch
             # I(W(x;p))
-            I_W = get_warped_patch(img, x, y self.theta)
+            I_W = get_warped_patch(img, p[0], p[1], p[2])
+            # sum( T-I(w(x;p)))
+            T_IW_sum = np.sum( (T-I_w) )
             # delta_p
-            delta_p = np.dot(   np.dot(H_inv, I_jac),  (T-I_w)  )
+            delta_p = np.dot(H_inv, I_jac) * T_IW_sum
             # update p
             p  += delta_p
             # update trans_x, trans_y, theta
             self.translationX = p[0]
             self.translationY = p[1]
-            self.theta        = p[3]
+            self.theta        = p[2]
             # if length og delta_p is less than min_delta_length, stop optimazation
             if(np.norm(p) < min_delta_length):
                 break
@@ -144,8 +146,10 @@ class KLTTracker:
 
         # Add new point to positionHistory to visualize tracking
         self.positionHistory.append((self.pos_x, self.pos_y, self.theta))
-        # return 0 if error = ok, length(delta_p) = ok in max_iterations
-        return 0
+
+        if np.sum(T_IW_sum) < max_error:
+            # return 0 if error = ok, length(delta_p) = ok in max_iterations
+            return 0
 
 class PointTracker:
 
