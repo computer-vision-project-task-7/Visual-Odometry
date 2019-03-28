@@ -9,11 +9,15 @@ from harrisdetector import get_grads
 
 flann = FLANN()
 
+def is_invertible(a):
+    return a.shape[0] == a.shape[1] and np.linalg.matrix_rank(a) == a.shape[0]
+
 
 def get_warped_patch(img: np.ndarray, patch_size: int,
                      x_translation: float, y_translation: float, theta) -> np.ndarray:
+
     """
-    Returns a warped image patch.
+    Returns a warped image patch.     W(x;p) function
 
     :param img:             Original image.
     :param patch_size:      The size of the patch. Should be a odd number.
@@ -71,6 +75,10 @@ class KLTTracker:
         """
         Tracks the KLT tracker on a new grayscale image. You will need the get_warped_patch function here.
 
+        **Objective:**
+        Tracking KLT tracker, whom which calculates how the new image (frame n) must
+        be transformed to have same values as last frames (frame n-1) image.
+
         :param img:              The image.
         :param img_grad:         The image gradient.
         :param max_iterations:   The maximum number of iterations to run.
@@ -81,26 +89,47 @@ class KLTTracker:
 
         :param max_error:    The maximum error allowed for a valid track.
 
-        :return:         Return 0 when track is successful,
-                         1 any point of the tracking patch is outside the image,
-                         2 if a invertible hessian is encountered and 3 if the final error is larger than max_error.
+        :return:         0 when track is successful,
+                         1 any point of the tracking patch is outside the image
+                         2 if a singular hessian is encountered
+                         3 if the final error is larger than max_error.
         """
-        # for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene)
+        # initialize p = p0
+        p = self.initialPosition
+        # for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene )
         for iteration in range(max_iterations):
             """
              You should try to implement this without using any loops,
              other than this iteration loop. Otherwise it will be very slow.
             """
-            # gradientene
-            Ix, Iy = get_grads(img)
-            grad_I = np.array( [Ix, Iy] )
+            # notation
+            c = np.cos(self.theta)
+            s = np.sin(self.theta)
+            x = self.pos_x
+            y = self.pos_y
+
+            # -----finne delta_p--------------
+            #dW/dp = jacobian (euclidian)
+            jac = np.array([  [1,    0,  -x*s - y*c ],
+                              [0,    1,   x*c - y*s ]   ])
+
+            I_jac = np.dot( img_grad, jac)
+            # finner hessian
+            H = np.dot( I_jac.T, I_jac)
+            # check if Hessian is singular (if not invertible => singular)
+            if is_invertible(H) == False:
+                return 2
+            # finne delta_p
+            H_inv = np.linalg.inv(H)
+            
 
 
-            raise NotImplementedError
+
 
         # Add new point to positionHistory to visualize tracking
         self.positionHistory.append((self.pos_x, self.pos_y, self.theta))
-
+        # return 0 if error = ok, length(delta_p) = ok in max_iterations
+        return 0
 
 class PointTracker:
 
