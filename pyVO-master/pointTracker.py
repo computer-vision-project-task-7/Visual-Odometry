@@ -119,10 +119,20 @@ class KLTTracker:
             # check if Hessian is singular (if not invertible => singular)
             if is_invertible(H) == False:
                 return 2
-            # finne delta_p
+            # hessian invertert
             H_inv = np.linalg.inv(H)
-            
+            # Template T(x)
+            T = self.trackingPatch
+            # I(W(x;p))
+            I_W = get_warped_patch(img, p[0], p[1], p[2])
+            # delta_p
+            delta_p = np.dot(   np.dot(H_inv, I_jac),  (T-I_w)  )
+            # update class param
+            p  = self.initialPosition + delta_p
 
+            if(np.norm(p) < min_delta_length):
+                break
+            
 
 
 
