@@ -103,7 +103,7 @@ class KLTTracker:
              other than this iteration loop. Otherwise it will be very slow.
             """
             # notation
-            p = np.array( [self.pos_x, self.pos_y, sel.theta])
+            p = np.array([self.pos_x, self.pos_y, self.theta])
             c = cos(self.theta)
             s = sin(self.theta)
             x = p[0]
@@ -111,7 +111,7 @@ class KLTTracker:
 
             # -----finne delta_p--------------
             #dW/dp = jacobian (euclidian)
-            jac = np.array([  [1,    0,  -x*s - y*c ],
+            jac = np.array([  [1,    0,  -x*s + y*c ],
                               [0,    1,   x*c - y*s ]   ])
 
             I_jac = np.dot( img_grad, jac)
@@ -126,6 +126,7 @@ class KLTTracker:
             T = self.trackingPatch
             # I(W(x;p))
             I_W = get_warped_patch(img, p[0], p[1], p[2])
+
             # sum( T-I(w(x;p)))
             T_IW_sum = np.sum(T-I_w)
             # delta_p
@@ -136,12 +137,15 @@ class KLTTracker:
             self.translationX = p[0]
             self.translationY = p[1]
             self.theta        = p[2]
+
+            #check if points on the patch are outside the image
+            if (self.pos_x-self.patchHalfSizeFloored <= 0 and self.pos_x+self.patchHalfSizeFloored >= img.shape[1]):
+            	if (self.pos_y-self.patchHalfSizeFloored <=0 and self.pos_y+self.patchHalfSizeFloored >= img.shape[0]):
+            		return 1
+
             # if length og delta_p is less than min_delta_length, stop optimazation
             if(np.norm(p) < min_delta_length):
                 break
-
-
-
 
         # Add new point to positionHistory to visualize tracking
         self.positionHistory.append((self.pos_x, self.pos_y, self.theta))
