@@ -127,12 +127,12 @@ class KLTTracker:
             I_W = get_warped_patch(img, p[0], p[1], p[2])
             # delta_p
             delta_p = np.dot(   np.dot(H_inv, I_jac),  (T-I_w)  )
-            # update class param
+            # update p
             p  = self.initialPosition + delta_p
 
             if(np.norm(p) < min_delta_length):
                 break
-            
+
 
 
 
