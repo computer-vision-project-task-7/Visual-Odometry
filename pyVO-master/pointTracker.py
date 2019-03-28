@@ -128,7 +128,7 @@ class KLTTracker:
             # I(W(x;p))
             I_W = get_warped_patch(img, p[0], p[1], p[2])
             # sum( T-I(w(x;p)))
-            T_IW_sum = np.sum( (T-I_w) )
+            T_IW_sum = np.sum(T-I_w)
             # delta_p
             delta_p = np.dot(H_inv, I_jac) * T_IW_sum
             # update p
