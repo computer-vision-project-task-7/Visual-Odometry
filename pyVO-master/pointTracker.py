@@ -150,6 +150,8 @@ class KLTTracker:
         if np.sum(T_IW_sum) < max_error:
             # return 0 if error = ok, length(delta_p) = ok in max_iterations
             return 0
+        else:
+            return 3
 
 class PointTracker:
 
