@@ -12,52 +12,58 @@ def get_grads(img):
 	return grad_x, grad_y
 
 
-def harris_corners(img: np.ndarray, patch_size=3, threshold_div_factor=1e4, blur_sigma=2.0) -> List[Tuple[float, np.ndarray]]:
-    """
-    Return the harris corners detected in the image.
-    :param img: The grayscale image.
-    :param threshold: The harris respnse function threshold.
-    :param blur_sigma: Sigma value for the image bluring.
-    :return: A sorted list of tuples containing response value and image position.
-    The list is sorted from largest to smallest response value.
-    """
+def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, blur_sigma=2.0) -> List[Tuple[float, np.ndarray]]:
+	"""
+	Return the harris corners detected in the image.
 
-    """
-    input parameter: grayscale image
-    output: image with corner features and corners [x,y, R]
-    """
+	:param img:				 The grayscale image.	shape (480, 640)
+	:param threshold:		 The harris respnse function threshold.
+	:param blur_sigma: 		 Sigma value for the image bluring.
 
-    #calculate image intensity gradients
-    I_x, I_y = get_grads(image)
-    #calculate the matrix elements:
-    I_xx = I_x**2
-    I_xy = I_x*I_y
-    I_yy = I_y**2
+	:return:
+					A sorted list of tuples containing response value and image position.
+			        The list is sorted from largest to smallest response value.
+	"""
 
-    corners = []
-    new_img = image.copy()
-    new_img = cv2.cvtColor(new_img, cv2.COLOR_GRAY2RGB)
+	"""
+	input parameter:		 grayscale image
+	output: 				 image with corner features and corners ( list of tuples(float, np.array) )
+	"""
 
-    summing_kernel = np.ones((patch_size, patch_size))
+	#calculate image intensity gradients
+	I_x, I_y = get_grads(image)
+	#calculate the matrix elements:
+	I_xx = I_x**2
+	I_xy = I_x*I_y
+	I_yy = I_y**2
 
-    A_mat = cv2.filter2D(I_xx, -1, summing_kernel)
-    B_mat = cv2.filter2D(I_xy, -1, summing_kernel)
-    C_mat = cv2.filter2D(I_yy, -1, summing_kernel)
+	corners = []
+	new_img = image.copy()
+	#new_img = cv2.cvtColor(new_img, cv2.COLOR_GRAY2RGB) trenger ikke denne
 
-    determinants = (A_mat * C_mat) - B_mat**2
-    traces = A_mat + C_mat
-    R_matrix = determinants - k*(traces)**2
+	summing_kernel = np.ones((patch_size, patch_size))
 
-    threshold = np.max(R_matrix)/threshold_div_factor
+	A_mat = cv2.filter2D(I_xx, -1, summing_kernel)
+	B_mat = cv2.filter2D(I_xy, -1, summing_kernel)
+	C_mat = cv2.filter2D(I_yy, -1, summing_kernel)
 
-    corner_indices = np.argwhere(R_matrix>threshold)
+	determinants = (A_mat * C_mat) - B_mat**2
+	traces = A_mat + C_mat
+	k = 0.2
+	R_matrix = determinants - k*(traces)**2
 
-    for x, y in corner_indices:
-    	corners.append((R_matrix[x, y], x, y))
-    	new_img.itemset((x, y, 0), 0)
-    	new_img.itemset((x, y, 1), 0)
-    	new_img.itemset((x, y, 2), 255)
-    corners = sorted(corners, key=lambda x : x[0], reverse=True)
+	threshold = np.max(R_matrix)/threshold_div_factor
+
+	corner_indices = np.argwhere(R_matrix>threshold)
+
+	for x, y in corner_indices:
+		# corners = list of tuples(float, np.ndarray)
+		corners.append(( R_matrix[x, y], np.array([x, y]) ))
+		#new_img.itemset((x, y, 0), 0)
+		#new_img.itemset((x, y, 1), 0)				trenger ikke disse
+		#new_img.itemset((x, y, 2), 255)
+	corners = sorted(corners, key=lambda x : x[0], reverse=True)
 
 
-    return new_img, corners
+	# need only return list of corners
+	return corners

@@ -7,7 +7,8 @@ from pointProjection import project_points
 
 from debug.PointsVisualizer import PointVisualizer
 
-dl = DataLoader('dataset/rgbd_dataset_freiburg2_desk') # Edit this string to load a different dataset
+# pathen her vil ikke fungere når dette uploades til git. uploader ikke dataset
+dl = DataLoader('dataset/rgbd_dataset_freiburg1_rpy') # Edit this string to load a different dataset
 
 tracker = PointTracker()
 vis = PointVisualizer()
@@ -24,9 +25,9 @@ points_and_response = harris_corners(grey_img)
 tracker.add_new_corners(grey_img, points_and_response)
 
 # Project the points in the first frame
-previous_ids, previous_points = tracker.get_position_with_id()
-previous_ids, previous_points = project_points(previous_ids, previous_points, depth_img)
-vis.set_projected_points(previous_points, initial_orientation, initial_position)
+#previous_ids, previous_points = tracker.get_position_with_id()
+#previous_ids, previous_points = project_points(previous_ids, previous_points, depth_img)
+#vis.set_projected_points(previous_points, initial_orientation, initial_position)
 
 current_orientation = initial_orientation
 current_position = initial_position
@@ -43,7 +44,7 @@ while dl.has_next():
     depth_img = dl.get_depth()
 
     # Track current points on new image
-    #tracker.track_on_image(grey_img)
+    tracker.track_on_image(grey_img)
     #tracker.visualize(grey_img)
 
     # Project tracked points
@@ -52,8 +53,8 @@ while dl.has_next():
     #vis.set_projected_points(points, gt_position, gt_orientation)
 
     # Replace lost points
-    #points_and_response = harris_corners(grey_img)
-    #tracker.add_new_corners(grey_img, points_and_response)
+    points_and_response = harris_corners(grey_img)
+    tracker.add_new_corners(grey_img, points_and_response)
 
     # Find transformation of the new frame
     ## I will push this code to the repo a bit later, as there is still some smaller issues to sort out with it

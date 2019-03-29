@@ -95,7 +95,7 @@ class KLTTracker:
                          2 if a singular hessian is encountered
                          3 if the final error is larger than max_error.
         """
-        
+
         # for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene )
         for iteration in range(max_iterations):
             """
@@ -115,8 +115,9 @@ class KLTTracker:
                               [0,    1,   x*c - y*s ]   ])
 
             I_jac = np.dot( img_grad, jac)
-            # finner hessian
-            H = np.dot( I_jac.T, I_jac)
+            # finner hessias  | dotter (480, 3, 640) med (480, 640, 3)<-orgshape
+            # .T byttt ut med transpose(0,2,1) for å muligjøre dottingen
+            H = np.dot( I_jac.transpose(0,2,1), I_jac)
             # check if Hessian is singular (if not invertible => singular)
             if is_invertible(H) == False:
                 return 2
@@ -126,7 +127,6 @@ class KLTTracker:
             T = self.trackingPatch
             # I(W(x;p))
             I_W = get_warped_patch(img, p[0], p[1], p[2])
-
             # sum( T-I(w(x;p)))
             T_IW_sum = np.sum(T-I_w)
             # delta_p
