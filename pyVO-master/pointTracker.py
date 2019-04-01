@@ -97,12 +97,19 @@ class KLTTracker:
         """
 
         # for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene )
+        # grad = np.array([[img_grad[self.initialPosition[0], self.initialPosition[1], 0], 0],
+        #     [0, img_grad[self.initialPosition[0], self.initialPosition[1], 1]]]).T
+        
+        #print(grad)
         for iteration in range(max_iterations):
             """
              You should try to implement this without using any loops,
              other than this iteration loop. Otherwise it will be very slow.
             """
             # notation
+            grad = np.array([[img_grad[int(self.pos_x), int(self.pos_y), 0], 0],
+            [0, img_grad[int(self.pos_x), int(self.pos_y), 1]]]).T
+
             p = np.array([self.pos_x, self.pos_y, self.theta])
             c = cos(self.theta)
             s = sin(self.theta)
@@ -111,13 +118,16 @@ class KLTTracker:
 
             # -----finne delta_p--------------
             #dW/dp = jacobian (euclidian)
-            jac = np.array([  [1,    0,  -x*s + y*c ],
-                              [0,    1,   x*c - y*s ]   ])
+            jac = np.array([[1,    0,  -x*s + y*c ],
+                            [0,    1,   x*c - y*s ]])
 
-            I_jac = np.dot( img_grad, jac)
-            # finner hessias  | dotter (480, 3, 640) med (480, 640, 3)<-orgshape
-            # .T byttt ut med transpose(0,2,1) for å muligjøre dottingen
-            H = np.dot( I_jac.transpose(0,2,1), I_jac)
+            I_jac = np.dot( grad, jac)
+            #print(jac.shape)
+            #print(grad.shape)
+            #print(I_jac.shape)
+            H = np.dot( I_jac.T, I_jac)
+
+            print(H)
             # check if Hessian is singular (if not invertible => singular)
             if is_invertible(H) == False:
                 return 2
@@ -126,9 +136,9 @@ class KLTTracker:
             # Template T(x)
             T = self.trackingPatch
             # I(W(x;p))
-            I_W = get_warped_patch(img, p[0], p[1], p[2])
+            I_W = get_warped_patch(img, self.patchSize, p[0], p[1], p[2])
             # sum( T-I(w(x;p)))
-            T_IW_sum = np.sum(T-I_w)
+            T_IW_sum = np.sum(T-I_W)
             # delta_p
             delta_p = np.dot(H_inv, I_jac) * T_IW_sum
             # update p
@@ -141,7 +151,8 @@ class KLTTracker:
             #check if points on the patch are outside the image
             if (self.pos_x-self.patchHalfSizeFloored <= 0 and self.pos_x+self.patchHalfSizeFloored >= img.shape[1]):
             	if (self.pos_y-self.patchHalfSizeFloored <=0 and self.pos_y+self.patchHalfSizeFloored >= img.shape[0]):
-            		return 1
+                    print('point outside image')
+                    return 1
 
             # if length og delta_p is less than min_delta_length, stop optimazation
             if(np.norm(p) < min_delta_length):
@@ -149,7 +160,7 @@ class KLTTracker:
 
         # Add new point to positionHistory to visualize tracking
         self.positionHistory.append((self.pos_x, self.pos_y, self.theta))
-
+        print(self.pos_x, self.pos_y, self.theta)
         if np.sum(T_IW_sum) < max_error:
             # return 0 if error = ok, length(delta_p) = ok in max_iterations
             return 0
@@ -244,6 +255,7 @@ class PointTracker:
         tracker_return_values = defaultdict(int)
         for klt in self.currentTrackers:
             tracker_condition = klt.track_new_image(img, img_grad, max_iterations)
+            print(tracker_condition)
             tracker_return_values[tracker_condition] += 1
             if tracker_condition != 0:
                 lost_track.append(klt)
