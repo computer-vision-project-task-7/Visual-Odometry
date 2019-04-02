@@ -99,40 +99,49 @@ class KLTTracker:
         # for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene )
         # grad = np.array([[img_grad[self.initialPosition[0], self.initialPosition[1], 0], 0],
         #     [0, img_grad[self.initialPosition[0], self.initialPosition[1], 1]]]).T
-        
+
         #print(grad)
         for iteration in range(max_iterations):
             """
              You should try to implement this without using any loops,
              other than this iteration loop. Otherwise it will be very slow.
             """
-            # notation
-            grad = np.array([[img_grad[int(self.pos_x), int(self.pos_y), 0], 0],
-            [0, img_grad[int(self.pos_x), int(self.pos_y), 1]]]).T
 
+            # notation
             p = np.array([self.pos_x, self.pos_y, self.theta])
             c = cos(self.theta)
             s = sin(self.theta)
             x = p[0]
             y = p[1]
 
-            # -----finne delta_p--------------
+
+            # gradient til patchen
+            grad = get_warped_patch(img_grad, self.patchSize, p[0], p[1], p[2])
+            print(grad.shape)
+            # (27,27, 2)
+
             #dW/dp = jacobian (euclidian)
             jac = np.array([[1,    0,  -x*s + y*c ],
-                            [0,    1,   x*c - y*s ]])
-
-            I_jac = np.dot( grad, jac)
-            #print(jac.shape)
-            #print(grad.shape)
-            #print(I_jac.shape)
+                            [0,    1,  -x*c - y*s ]])
+            # (27,27, 2, 3)
+            I_jac = np.dot( grad, np.dot( self.trackingPatch, jac ) )
+            # (27, 27, 3)
+            print("i_jac", I_jac.shape)
             H = np.dot( I_jac.T, I_jac)
+            H = H.transpose(1,2,3,0)
+            print(H.shape)
+            H_test = np.sum(H, axis = 0)
+            H_test2 = np.sum(H_test, axis = 0)
 
-            print(H)
+            print(H_test2.shape)
+            # (3, 27, 27, 3)
+
+
             # check if Hessian is singular (if not invertible => singular)
-            if is_invertible(H) == False:
+            if is_invertible(H_test2) == False:
                 return 2
             # hessian invertert
-            H_inv = np.linalg.inv(H)
+            H_inv = np.linalg.inv(H_test2)
             # Template T(x)
             T = self.trackingPatch
             # I(W(x;p))

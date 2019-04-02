@@ -20,15 +20,4 @@ def project_points(ids: np.ndarray, points: np.ndarray, depth_img: np.ndarray) -
     :return:             A tuple containing a N vector and a 3xN vector of all the points that where successfully projected.
     """
 
-        # listify ponts array, construct z vector
-        points_list = zip(p[0], p[1])
-        z = []
-
-        # getting z-values for each 2D point
-        for x,y, in points_list:
-            z.append( depth_img[x][y] )
-
-        # adding z values to the 2D points, making them 3D. (3xN matrix)
-        points_3d = np.vstack( (points, z) )
-        # returning a tuple of ids and 3D points
-        return (ids, points_3d)
+    raise NotImplementedError
