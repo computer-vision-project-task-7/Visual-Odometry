@@ -12,7 +12,7 @@ def get_grads(img):
 	return grad_x, grad_y
 
 
-def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, blur_sigma=2.0) -> List[Tuple[float, np.ndarray]]:
+def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, k=0.06, blur_sigma=2.0) -> List[Tuple[float, np.ndarray]]:
 	"""
 	Return the harris corners detected in the image.
 
@@ -38,8 +38,7 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, bl
 	I_yy = I_y**2
 
 	corners = []
-	new_img = image.copy()
-	#new_img = cv2.cvtColor(new_img, cv2.COLOR_GRAY2RGB) trenger ikke denne
+
 
 	summing_kernel = np.ones((patch_size, patch_size))
 
@@ -49,7 +48,6 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, bl
 
 	determinants = (A_mat * C_mat) - B_mat**2
 	traces = A_mat + C_mat
-	k = 0.2
 	R_matrix = determinants - k*(traces)**2
 
 	threshold = np.max(R_matrix)/threshold_div_factor

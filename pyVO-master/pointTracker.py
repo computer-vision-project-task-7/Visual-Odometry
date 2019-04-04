@@ -5,283 +5,302 @@ from pyflann import *
 from typing import Tuple, List
 from math import sin, cos, pi, sqrt
 from collections import defaultdict
-from harrisdetector import get_grads
+#from harrisdetector import get_grads
 
 flann = FLANN()
 
 def is_invertible(a):
-    return a.shape[0] == a.shape[1] and np.linalg.matrix_rank(a) == a.shape[0]
+	return a.shape[0] == a.shape[1] and np.linalg.matrix_rank(a) == a.shape[0]
 
 
 def get_warped_patch(img: np.ndarray, patch_size: int,
-                     x_translation: float, y_translation: float, theta) -> np.ndarray:
+					 x_translation: float, y_translation: float, theta) -> np.ndarray:
 
-    """
-    Returns a warped image patch.     W(x;p) function
+	"""
+	Returns a warped image patch.     W(x;p) function
 
-    :param img:             Original image.
-    :param patch_size:      The size of the patch. Should be a odd number.
-    :param x_translation:   The x position of the patch center.
-    :param y_translation:   The y position of the patch center.
-    :param theta:           The rotation of the patch in radians.
+	:param img:             Original image.
+	:param patch_size:      The size of the patch. Should be a odd number.
+	:param x_translation:   The x position of the patch center.
+	:param y_translation:   The y position of the patch center.
+	:param theta:           The rotation of the patch in radians.
 
-    :return:                The warped image patch.
-    """
-    patch_half_size = patch_size//2
-    c = cos(-theta)
-    s = sin(-theta)
+	:return:                The warped image patch.
+	"""
+	patch_half_size = patch_size//2
+	c = cos(-theta)
+	s = sin(-theta)
 
-    t = np.array([[c, s, (-c - s) * patch_half_size + x_translation],
-                  [-s, c, (s - c) * patch_half_size + y_translation]])
+	t = np.array([[c, s, (-c - s) * patch_half_size + x_translation],
+				  [-s, c, (s - c) * patch_half_size + y_translation]])
 
-    return cv2.warpAffine(img, t, (patch_size, patch_size), flags=cv2.WARP_INVERSE_MAP)
+	return cv2.warpAffine(img, t, (patch_size, patch_size), flags=cv2.WARP_INVERSE_MAP)
 
 
 class KLTTracker:
 
-    def __init__(self, initial_position: np.ndarray, origin_image: np.ndarray, patch_size, tracker_id):
-        assert patch_size >= 3 and patch_size % 2 == 1, f'patch_size must be 3 or greater and be a odd number, is {patch_size}'
-        # koordinatene til features vi tracker
-        self.initialPosition = initial_position
+	def __init__(self, initial_position: np.ndarray, origin_image: np.ndarray, patch_size, tracker_id):
+		assert patch_size >= 3 and patch_size % 2 == 1, f'patch_size must be 3 or greater and be a odd number, is {patch_size}'
+		# koordinatene til features vi tracker
+		self.initialPosition = initial_position
 
-        self.translationX = 0.0
-        self.translationY = 0.0
-        self.theta = 0.0
+		self.translationX = 0.0
+		self.translationY = 0.0
+		self.theta = 0.0
 
-        self.positionHistory = [(self.pos_x, self.pos_y, self.theta)]
-        self.trackerID = tracker_id
-        self.patchSize = patch_size
-        self.patchHalfSizeFloored = patch_size // 2
+		self.positionHistory = [(self.pos_x, self.pos_y, self.theta)]
+		self.trackerID = tracker_id
+		self.patchSize = patch_size
+		self.patchHalfSizeFloored = patch_size // 2
 
-        pos_x, pos_y = initial_position
-        image_height, image_width = origin_image.shape
-        assert self.patchHalfSizeFloored <= pos_x < image_width - self.patchHalfSizeFloored \
-               and self.patchHalfSizeFloored <= pos_y < image_height - self.patchHalfSizeFloored, \
-            f'Point is to close to the image border for the current patch size, point is {initial_position} and patch_size is {patch_size}'
-        self.trackingPatch = origin_image[pos_y - self.patchHalfSizeFloored:pos_y + self.patchHalfSizeFloored + 1,
-                                          pos_x - self.patchHalfSizeFloored:pos_x + self.patchHalfSizeFloored + 1]
-        self.visualizeColor = np.random.randint(0, 256, 3, dtype=int)
-        self.patchBorder = sqrt(2*patch_size**2) + 1
+		pos_x, pos_y = initial_position
+		image_height, image_width = origin_image.shape
+		assert self.patchHalfSizeFloored <= pos_x < image_width - self.patchHalfSizeFloored \
+			   and self.patchHalfSizeFloored <= pos_y < image_height - self.patchHalfSizeFloored, \
+			f'Point is to close to the image border for the current patch size, point is {initial_position} and patch_size is {patch_size}'
+		self.trackingPatch = origin_image[pos_y - self.patchHalfSizeFloored:pos_y + self.patchHalfSizeFloored + 1,
+										  pos_x - self.patchHalfSizeFloored:pos_x + self.patchHalfSizeFloored + 1]
+		self.visualizeColor = np.random.randint(0, 256, 3, dtype=int)
+		self.patchBorder = sqrt(2*patch_size**2) + 1
 
-    @property
-    def pos_x(self):
-        return self.initialPosition[0] + self.translationX
+	@property
+	def pos_x(self):
+		return self.initialPosition[0] + self.translationX
 
-    @property
-    def pos_y(self):
-        return self.initialPosition[1] + self.translationY
+	@property
+	def pos_y(self):
+		return self.initialPosition[1] + self.translationY
 
-    def track_new_image(self, img: np.ndarray, img_grad: np.ndarray, max_iterations: int,
-                        min_delta_length=2.5e-2, max_error=0.035) -> int:
-        """
-        Tracks the KLT tracker on a new grayscale image. You will need the get_warped_patch function here.
+	def track_new_image(self, img: np.ndarray, img_grad: np.ndarray, max_iterations: int,
+						min_delta_length=2.5e-2, max_error=0.035) -> int:
+		"""
+		Tracks the KLT tracker on a new grayscale image. You will need the get_warped_patch function here.
 
-        **Objective:**
-        Tracking KLT tracker, whom which calculates how the new image (frame n) must
-        be transformed to have same values as last frames (frame n-1) image.
+		**Objective:**
+		Tracking KLT tracker, whom which calculates how the new image (frame n) must
+		be transformed to have same values as last frames (frame n-1) image.
 
-        :param img:              The image.
-        :param img_grad:         The image gradient.
-        :param max_iterations:   The maximum number of iterations to run.
-        :param min_delta_length: The minimum length of the delta vector.
-
-
-        If the length is shorter than this, then the optimization should stop.
-
-        :param max_error:    The maximum error allowed for a valid track.
-
-        :return:         0 when track is successful,
-                         1 any point of the tracking patch is outside the image
-                         2 if a singular hessian is encountered
-                         3 if the final error is larger than max_error.
-        """
-
-        # for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene )
-        # grad = np.array([[img_grad[self.initialPosition[0], self.initialPosition[1], 0], 0],
-        #     [0, img_grad[self.initialPosition[0], self.initialPosition[1], 1]]]).T
-
-        #print(grad)
-        for iteration in range(max_iterations):
-            """
-             You should try to implement this without using any loops,
-             other than this iteration loop. Otherwise it will be very slow.
-            """
-
-            # notation
-            p = np.array([self.pos_x, self.pos_y, self.theta])
-            c = cos(self.theta)
-            s = sin(self.theta)
-            x = p[0]
-            y = p[1]
+		:param img:              The image.
+		:param img_grad:         The image gradient.
+		:param max_iterations:   The maximum number of iterations to run.
+		:param min_delta_length: The minimum length of the delta vector.
 
 
-            # gradient til patchen
-            grad = get_warped_patch(img_grad, self.patchSize, p[0], p[1], p[2])
-            print(grad.shape)
-            # (27,27, 2)
+		If the length is shorter than this, then the optimization should stop.
 
-            #dW/dp = jacobian (euclidian)
-            jac = np.array([[1,    0,  -x*s + y*c ],
-                            [0,    1,  -x*c - y*s ]])
-            # (27,27, 2, 3)
-            I_jac = np.dot( grad, np.dot( self.trackingPatch, jac ) )
-            # (27, 27, 3)
-            print("i_jac", I_jac.shape)
-            H = np.dot( I_jac.T, I_jac)
-            H = H.transpose(1,2,3,0)
-            print(H.shape)
-            H_test = np.sum(H, axis = 0)
-            H_test2 = np.sum(H_test, axis = 0)
+		:param max_error:    The maximum error allowed for a valid track.
 
-            print(H_test2.shape)
-            # (3, 27, 27, 3)
+		:return:         0 when track is successful,
+						 1 any point of the tracking patch is outside the image
+						 2 if a singular hessian is encountered
+						 3 if the final error is larger than max_error.
+		"""
 
+		# for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene )
+		print(self.initialPosition)
+		T = self.trackingPatch
+		p = np.array([self.pos_x, self.pos_y, self.theta])
+		jac = np.zeros((self.patchSize, self.patchSize, 2, 3))
+		for x in range(self.patchSize):
+			for y in range(self.patchSize):
+				# jac[x,y] = np.array([[1, 0, -np.abs(x-self.patchSize//2)*sin(self.theta) + np.abs(y-self.patchSize//2)*cos(self.theta) ],
+				# 					[0, 1, np.abs(x-self.patchSize//2)*cos(self.theta) - np.abs(y-self.patchSize//2)*sin(self.theta) ]])
+				jac[x,y] = np.array([[1, 0, -(x-self.patchSize//2)*sin(self.theta) + (y-self.patchSize//2)*cos(self.theta) ],
+									[0, 1, (x-self.patchSize//2)*cos(self.theta) - (y-self.patchSize//2)*sin(self.theta) ]])
+				#ev. ta bort np.abs vet ikke om det hjelper
+		#print(jac)
+		for iteration in range(max_iterations):
+			"""
+			 You should try to implement this without using any loops,
+			 other than this iteration loop. Otherwise it will be very slow.
+			"""
+			#print('ny itr')		
 
-            # check if Hessian is singular (if not invertible => singular)
-            if is_invertible(H_test2) == False:
-                return 2
-            # hessian invertert
-            H_inv = np.linalg.inv(H_test2)
-            # Template T(x)
-            T = self.trackingPatch
-            # I(W(x;p))
-            I_W = get_warped_patch(img, self.patchSize, p[0], p[1], p[2])
-            # sum( T-I(w(x;p)))
-            T_IW_sum = np.sum(T-I_W)
-            # delta_p
-            delta_p = np.dot(H_inv, I_jac) * T_IW_sum
-            # update p
-            p  += delta_p
-            # update trans_x, trans_y, theta
-            self.translationX = p[0]
-            self.translationY = p[1]
-            self.theta        = p[2]
+			p = np.array([self.pos_x, self.pos_y, self.theta])
+	
+			# -----finne delta_p--------------
+			grad_vec = get_warped_patch(img_grad, self.patchSize, p[0], p[1], p[2])
+			grad = np.zeros((grad_vec.shape[0], grad_vec.shape[1], grad_vec.shape[2],2))
+			for x in range(grad.shape[0]):
+				for y in range(grad.shape[1]):
+					grad[x,y] = np.diag(grad_vec[x,y])
+			#print('grad.shape', grad.shape) #(27, 27, 2, 2)
+			# #dW/dp = jacobian (euclidian)
+			# jac = np.array([[1,    0,  -x*s + y*c ],
+			# 				[0,    1,   x*c - y*s ]])
+			#print('jac.shape', jac.shape) #(27, 27, 2, 3)
+			#I_jac = np.sum(np.dot( grad, jac), axis=(0,1,3,4))
+			#I_jac = np.tensordot(grad, jac, ((0,1),(1,0)))
+			I_jac = np.zeros((27, 27, 2, 3))
+			for x in range(grad.shape[0]):
+				for y in range(grad.shape[1]):
+					I_jac[x,y] = np.dot(grad[x,y], jac[x,y])
+			#print('I_jac.shape', I_jac.shape) #(27, 27, 2, 3)
 
-            #check if points on the patch are outside the image
-            if (self.pos_x-self.patchHalfSizeFloored <= 0 and self.pos_x+self.patchHalfSizeFloored >= img.shape[1]):
-            	if (self.pos_y-self.patchHalfSizeFloored <=0 and self.pos_y+self.patchHalfSizeFloored >= img.shape[0]):
-                    print('point outside image')
-                    return 1
+			#H = np.sum(np.dot( I_jac.transpose(0,1,3,2), I_jac), axis=(0,1,3,4))
+			H_not_summed = np.zeros((27, 27, 3, 3))
+			for x in range(H_not_summed.shape[0]):
+				for y in range(H_not_summed.shape[1]):
+					H_not_summed[x,y] = np.dot(I_jac[x,y].T, I_jac[x,y])
+			H = np.sum(H_not_summed, axis=(0,1))	
+			#print(H.shape)
+			#print(H)
+			# check if Hessian is singular (if not invertible => singular)
+			if is_invertible(H) == False:
+				return 2
+			# hessian invertert
+			H_inv = np.linalg.inv(H)
+			#print('inverted', H_inv)
+			# Template T(x)
+			
+			# I(W(x;p))
+			I_W = get_warped_patch(img, self.patchSize, p[0], p[1], p[2])
+			# sum( T-I(w(x;p)))
+			T_IW = (T-I_W)
+			
+			# delta_p
+			#delta_p = np.dot(H_inv, I_jac) * T_IW_sum
+			delta_p_not_summed = np.zeros((27, 27, 3, 2))
+			for x in range(27):
+				for y in range(27):
+					delta_p_not_summed[x,y] = I_jac[x,y].T * T_IW[x,y]
+			delta_p = np.sum(delta_p_not_summed, axis=(0,1,3))#.reshape(3,1)
+	
+			# update p
+			#print(delta_p)
+			
+			# p  += delta_p
+			#print(p)
+			# update trans_x, trans_y, theta
+			self.translationX += delta_p[0]
+			self.translationY += delta_p[1]
+			self.theta        += delta_p[2]
 
-            # if length og delta_p is less than min_delta_length, stop optimazation
-            if(np.norm(p) < min_delta_length):
-                break
+			#check if points on the patch are outside the image
+			if (self.pos_x-self.patchHalfSizeFloored <= 0 and self.pos_x+self.patchHalfSizeFloored >= img.shape[1]):
+				if (self.pos_y-self.patchHalfSizeFloored <=0 and self.pos_y+self.patchHalfSizeFloored >= img.shape[0]):
+					print('point outside image')
+					return 1
 
-        # Add new point to positionHistory to visualize tracking
-        self.positionHistory.append((self.pos_x, self.pos_y, self.theta))
-        print(self.pos_x, self.pos_y, self.theta)
-        if np.sum(T_IW_sum) < max_error:
-            # return 0 if error = ok, length(delta_p) = ok in max_iterations
-            return 0
-        else:
-            return 3
+			# if length og delta_p is less than min_delta_length, stop optimazation
+			if(np.linalg.norm(p) < min_delta_length):
+				break
+
+		# Add new point to positionHistory to visualize tracking
+		self.positionHistory.append((self.pos_x, self.pos_y, self.theta))
+		print(self.pos_x, self.pos_y, self.theta)
+		if np.sum(T_IW) < max_error:
+			# return 0 if error = ok, length(delta_p) = ok in max_iterations
+			return 0
+		else:
+			return 3
 
 class PointTracker:
 
-    def __init__(self, max_points=80, tracking_patch_size=27):
-        self.maxPoints = max_points
-        self.trackingPatchSize = tracking_patch_size
-        self.currentTrackers = []
-        self.nextTrackerId = 0
+	def __init__(self, max_points=10, tracking_patch_size=27):
+		self.maxPoints = max_points
+		self.trackingPatchSize = tracking_patch_size
+		self.currentTrackers = []
+		self.nextTrackerId = 0
 
 
-    def visualize(self, img: np.ndarray, draw_id=False):
-        img_vis = cv2.cvtColor((img*255).astype(np.uint8), cv2.COLOR_GRAY2RGB)
-        for klt in self.currentTrackers:
-            x_pos = int(round(klt.pos_x))
-            y_pos = int(round(klt.pos_y))
-            length = 20
-            x2_pos = int(round(x_pos + length * cos(-klt.theta + pi / 2)))
-            y2_pos = int(round(y_pos - length * sin(-klt.theta + pi / 2)))
-            cv2.circle(img_vis, (x_pos, y_pos), 3, [int(c) for c in klt.visualizeColor], -1)
-            cv2.line(img_vis, (x_pos, y_pos), (x2_pos, y2_pos), 0, thickness=1, lineType=cv2.LINE_AA)
-            if draw_id:
-                cv2.putText(img_vis, f'{klt.trackerID}', (x_pos+5, y_pos), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.8, (255, 100, 0))
+	def visualize(self, img: np.ndarray, draw_id=False):
+		img_vis = cv2.cvtColor((img*255).astype(np.uint8), cv2.COLOR_GRAY2RGB)
+		for klt in self.currentTrackers:
+			x_pos = int(round(klt.pos_x))
+			y_pos = int(round(klt.pos_y))
+			length = 20
+			x2_pos = int(round(x_pos + length * cos(-klt.theta + pi / 2)))
+			y2_pos = int(round(y_pos - length * sin(-klt.theta + pi / 2)))
+			cv2.circle(img_vis, (x_pos, y_pos), 3, [int(c) for c in klt.visualizeColor], -1)
+			cv2.line(img_vis, (x_pos, y_pos), (x2_pos, y2_pos), 0, thickness=1, lineType=cv2.LINE_AA)
+			if draw_id:
+				cv2.putText(img_vis, f'{klt.trackerID}', (x_pos+5, y_pos), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.8, (255, 100, 0))
 
-            if len(klt.positionHistory) >= 2:
-                for i in range(len(klt.positionHistory)-1):
-                    x_from, y_from, _ = klt.positionHistory[i]
-                    x_to, y_to, _ = klt.positionHistory[i+1]
-                    cv2.line(img_vis, (int(round(x_from)), int(round(y_from))), (int(round(x_to)), int(round(y_to))), 0, thickness=1, lineType=cv2.LINE_AA)
+			if len(klt.positionHistory) >= 2:
+				for i in range(len(klt.positionHistory)-1):
+					x_from, y_from, _ = klt.positionHistory[i]
+					x_to, y_to, _ = klt.positionHistory[i+1]
+					cv2.line(img_vis, (int(round(x_from)), int(round(y_from))), (int(round(x_to)), int(round(y_to))), 0, thickness=1, lineType=cv2.LINE_AA)
 
-        cv2.imshow("KLT Trackers", img_vis)
+		cv2.imshow("KLT Trackers", img_vis)
 
 
 
-    def add_new_corners(self, origin_image: np.ndarray, points_and_response_list:  List[Tuple[float, np.ndarray]],
-                                                                                        min_distance=13.0) -> None:
+	def add_new_corners(self, origin_image: np.ndarray, points_and_response_list:  List[Tuple[float, np.ndarray]],
+																						min_distance=13.0) -> None:
 
-        assert len(points_and_response_list) > 0, 'points_list is empty'
+		assert len(points_and_response_list) > 0, 'points_list is empty'
 
-        for i in range(len(points_and_response_list) - 1):
-         # Check that points_list is sorted from largest to smallest response value
-            assert points_and_response_list[i][0] >= points_and_response_list[i + 1][0], 'points_list is not sorted'
+		for i in range(len(points_and_response_list) - 1):
+		 # Check that points_list is sorted from largest to smallest response value
+			assert points_and_response_list[i][0] >= points_and_response_list[i + 1][0], 'points_list is not sorted'
 
-        if len(self.currentTrackers) >= self.maxPoints:
-         # Dont do anything if we already have the maximum number of points
-            return
+		if len(self.currentTrackers) >= self.maxPoints:
+		 # Dont do anything if we already have the maximum number of points
+			return
 
-        filtered_points = []
+		filtered_points = []
 
-        image_height, image_width = origin_image.shape
-        patch_border = sqrt(2 * self.trackingPatchSize ** 2) + 1
-        for _, point in points_and_response_list:
-         # Filter out points to close to the image border
-            pos_x, pos_y = point
-            if patch_border <= pos_x < image_width - patch_border \
-                    and patch_border <= pos_y < image_height - patch_border:
-                filtered_points.append(point)
+		image_height, image_width = origin_image.shape
+		patch_border = sqrt(2 * self.trackingPatchSize ** 2) + 1
+		for _, point in points_and_response_list:
+		 # Filter out points to close to the image border
+			pos_x, pos_y = point
+			if patch_border <= pos_x < image_width - patch_border \
+					and patch_border <= pos_y < image_height - patch_border:
+				filtered_points.append(point)
 
-        points = filtered_points
-        filtered_points = []
-        if len(self.currentTrackers) > 0:
-         # Filter out points to close to existing points
-            current_points = [np.array([klt.pos_x, klt.pos_y]) for klt in self.currentTrackers]
-            _, dists = flann.nn(np.array(current_points, dtype=np.int32), np.array(points, dtype=np.int32), 1)
-            dists = np.sqrt(dists)
-            filter_indices = np.arange(0, len(points))[dists >= min_distance]
+		points = filtered_points
+		filtered_points = []
+		if len(self.currentTrackers) > 0:
+		 # Filter out points to close to existing points
+			current_points = [np.array([klt.pos_x, klt.pos_y]) for klt in self.currentTrackers]
+			_, dists = flann.nn(np.array(current_points, dtype=np.int32), np.array(points, dtype=np.int32), 1)
+			dists = np.sqrt(dists)
+			filter_indices = np.arange(0, len(points))[dists >= min_distance]
 
-            for i in filter_indices:
-                filtered_points.append(points[i])
-            points = filtered_points
+			for i in filter_indices:
+				filtered_points.append(points[i])
+			points = filtered_points
 
-        # Add at most enough points to bring us up to the max number of points
-        number_of_points_to_add = min(len(points), self.maxPoints - len(self.currentTrackers))
-        points = points[:number_of_points_to_add]
+		# Add at most enough points to bring us up to the max number of points
+		number_of_points_to_add = min(len(points), self.maxPoints - len(self.currentTrackers))
+		points = points[:number_of_points_to_add]
 
-        for point in points:
-            # origin_image = Template T(x)
-            self.currentTrackers.append(KLTTracker(point, origin_image, self.trackingPatchSize, self.nextTrackerId))
-            self.nextTrackerId += 1
+		for point in points:
+			# origin_image = Template T(x)
+			self.currentTrackers.append(KLTTracker(point, origin_image, self.trackingPatchSize, self.nextTrackerId))
+			self.nextTrackerId += 1
 
-    def track_on_image(self, img: np.ndarray, max_iterations=25) -> None:
+	def track_on_image(self, img: np.ndarray, max_iterations=25) -> None:
 
-        img_dx = cv2.Scharr(img, cv2.CV_64FC1, 1, 0)    # scharr likt sobel ( finner gradient )
-        img_dy = cv2.Scharr(img, cv2.CV_64FC1, 0, 1)
-        img_grad = np.stack((img_dx, img_dy), axis=-1)
+		img_dx = cv2.Scharr(img, cv2.CV_64FC1, 1, 0)    # scharr likt sobel ( finner gradient )
+		img_dy = cv2.Scharr(img, cv2.CV_64FC1, 0, 1)
+		img_grad = np.stack((img_dx, img_dy), axis=-1)
+		cv2.waitKey(0)
+		lost_track = []
+		tracker_return_values = defaultdict(int)
+		for klt in self.currentTrackers:
+			tracker_condition = klt.track_new_image(img, img_grad, max_iterations)
+			#print(tracker_condition)
+			tracker_return_values[tracker_condition] += 1
+			if tracker_condition != 0:
+				lost_track.append(klt)
 
-        lost_track = []
-        tracker_return_values = defaultdict(int)
-        for klt in self.currentTrackers:
-            tracker_condition = klt.track_new_image(img, img_grad, max_iterations)
-            print(tracker_condition)
-            tracker_return_values[tracker_condition] += 1
-            if tracker_condition != 0:
-                lost_track.append(klt)
+		print(f"Tracked frame - remained: {tracker_return_values[0]}, hit border: {tracker_return_values[1]}, "
+			  f"singular_hessian: {tracker_return_values[2]}, large error: {tracker_return_values[3]}")
 
-        print(f"Tracked frame - remained: {tracker_return_values[0]}, hit border: {tracker_return_values[1]}, "
-              f"singular_hessian: {tracker_return_values[2]}, large error: {tracker_return_values[3]}")
+		for klt in lost_track:
+			self.currentTrackers.remove(klt)
 
-        for klt in lost_track:
-            self.currentTrackers.remove(klt)
+	def get_position_with_id(self) -> Tuple[np.ndarray, np.ndarray]:
+		n_points = len(self.currentTrackers)
+		ids = np.empty(n_points, dtype=np.int32)
+		positions = np.empty((2, n_points), dtype=np.float64)
 
-    def get_position_with_id(self) -> Tuple[np.ndarray, np.ndarray]:
-        n_points = len(self.currentTrackers)
-        ids = np.empty(n_points, dtype=np.int32)
-        positions = np.empty((2, n_points), dtype=np.float64)
+		for i, klt in enumerate(self.currentTrackers):
+			ids[i] = klt.trackerID
+			positions[:, i] = (klt.pos_x, klt.pos_y)
 
-        for i, klt in enumerate(self.currentTrackers):
-            ids[i] = klt.trackerID
-            positions[:, i] = (klt.pos_x, klt.pos_y)
-
-        return ids, positions
+		return ids, positions
