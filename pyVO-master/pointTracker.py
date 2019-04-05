@@ -1,11 +1,10 @@
 import numpy as np
 import cv2
-
 from pyflann import *
 from typing import Tuple, List
 from math import sin, cos, pi, sqrt
 from collections import defaultdict
-#from harrisdetector import get_grads
+import time
 
 flann = FLANN()
 
@@ -30,10 +29,9 @@ def get_warped_patch(img: np.ndarray, patch_size: int,
 	patch_half_size = patch_size//2
 	c = cos(-theta)
 	s = sin(-theta)
-
-	t = np.array([[c, s, (-c - s) * patch_half_size + x_translation],
-				  [-s, c, (s - c) * patch_half_size + y_translation]])
-
+	t = np.array([[c, s, float((-c - s) * patch_half_size + x_translation)],
+				  [-s, c, float((s - c) * patch_half_size + y_translation)]])
+	
 	return cv2.warpAffine(img, t, (patch_size, patch_size), flags=cv2.WARP_INVERSE_MAP)
 
 
@@ -65,11 +63,11 @@ class KLTTracker:
 
 	@property
 	def pos_x(self):
-		return self.initialPosition[0] + self.translationX
+		return float(self.initialPosition[0] + self.translationX)
 
 	@property
 	def pos_y(self):
-		return self.initialPosition[1] + self.translationY
+		return float(self.initialPosition[1] + self.translationY)
 
 	def track_new_image(self, img: np.ndarray, img_grad: np.ndarray, max_iterations: int,
 						min_delta_length=2.5e-2, max_error=0.035) -> int:
@@ -95,100 +93,57 @@ class KLTTracker:
 						 2 if a singular hessian is encountered
 						 3 if the final error is larger than max_error.
 		"""
-
-		# for hver optimasjons-iterasjon ( optimaliserer mtp transoformen, på alle punktene )
-		print(self.initialPosition)
-		T = self.trackingPatch
-		p = np.array([self.pos_x, self.pos_y, self.theta])
-		jac = np.zeros((self.patchSize, self.patchSize, 2, 3))
-		for x in range(self.patchSize):
-			for y in range(self.patchSize):
-				# jac[x,y] = np.array([[1, 0, -np.abs(x-self.patchSize//2)*sin(self.theta) + np.abs(y-self.patchSize//2)*cos(self.theta) ],
-				# 					[0, 1, np.abs(x-self.patchSize//2)*cos(self.theta) - np.abs(y-self.patchSize//2)*sin(self.theta) ]])
-				jac[x,y] = np.array([[1, 0, -(x-self.patchSize//2)*sin(self.theta) + (y-self.patchSize//2)*cos(self.theta) ],
-									[0, 1, (x-self.patchSize//2)*cos(self.theta) - (y-self.patchSize//2)*sin(self.theta) ]])
-				#ev. ta bort np.abs vet ikke om det hjelper
-		#print(jac)
-		for iteration in range(max_iterations):
-			"""
-			 You should try to implement this without using any loops,
-			 other than this iteration loop. Otherwise it will be very slow.
-			"""
-			#print('ny itr')		
-
-			p = np.array([self.pos_x, self.pos_y, self.theta])
 	
+		T = self.trackingPatch
+		for iteration in range(max_iterations):	
+			#t = time.time()
+			p = np.array([self.pos_x, self.pos_y, self.theta])	
+			jac = np.zeros((self.patchSize, self.patchSize, 2, 3)) #bruk mgrid
+			jac[:,:,0,0] = 1
+			jac[:,:,0,1] = 0
+			jac[:,:,1,0] = 0
+			jac[:,:,1,1] = 1
+			grid_x, grid_y = np.mgrid[-self.patchHalfSizeFloored:self.patchHalfSizeFloored+1,
+			 -self.patchHalfSizeFloored:self.patchHalfSizeFloored+1]
+			jac[:,:,0,2] = -grid_x * sin(self.theta) + grid_y * cos(self.theta)
+			jac[:,:,1,2] = grid_x * cos(self.theta) - grid_y * sin(self.theta)
 			# -----finne delta_p--------------
-			grad_vec = get_warped_patch(img_grad, self.patchSize, p[0], p[1], p[2])
-			grad = np.zeros((grad_vec.shape[0], grad_vec.shape[1], grad_vec.shape[2],2))
-			for x in range(grad.shape[0]):
-				for y in range(grad.shape[1]):
-					grad[x,y] = np.diag(grad_vec[x,y])
-			#print('grad.shape', grad.shape) #(27, 27, 2, 2)
-			# #dW/dp = jacobian (euclidian)
-			# jac = np.array([[1,    0,  -x*s + y*c ],
-			# 				[0,    1,   x*c - y*s ]])
-			#print('jac.shape', jac.shape) #(27, 27, 2, 3)
-			#I_jac = np.sum(np.dot( grad, jac), axis=(0,1,3,4))
-			#I_jac = np.tensordot(grad, jac, ((0,1),(1,0)))
-			I_jac = np.zeros((27, 27, 2, 3))
-			for x in range(grad.shape[0]):
-				for y in range(grad.shape[1]):
-					I_jac[x,y] = np.dot(grad[x,y], jac[x,y])
-			#print('I_jac.shape', I_jac.shape) #(27, 27, 2, 3)
-
-			#H = np.sum(np.dot( I_jac.transpose(0,1,3,2), I_jac), axis=(0,1,3,4))
-			H_not_summed = np.zeros((27, 27, 3, 3))
-			for x in range(H_not_summed.shape[0]):
-				for y in range(H_not_summed.shape[1]):
-					H_not_summed[x,y] = np.dot(I_jac[x,y].T, I_jac[x,y])
-			H = np.sum(H_not_summed, axis=(0,1))	
-			#print(H.shape)
-			#print(H)
-			# check if Hessian is singular (if not invertible => singular)
-			if is_invertible(H) == False:
+			grad = get_warped_patch(img_grad, self.patchSize, p[0], p[1], p[2]).reshape(27,27,2,1).transpose(0,1,3,2)
+			I_jac = grad @ jac
+			H = I_jac.transpose(0,1,3,2) @ I_jac
+			print(H.shape)
+			H = np.sum(H, axis=(0,1))
+			
+			if is_invertible(H) == False:	# check if Hessian is singular (if not invertible => singular)
 				return 2
 			# hessian invertert
 			H_inv = np.linalg.inv(H)
-			#print('inverted', H_inv)
-			# Template T(x)
 			
 			# I(W(x;p))
 			I_W = get_warped_patch(img, self.patchSize, p[0], p[1], p[2])
+
 			# sum( T-I(w(x;p)))
-			T_IW = (T-I_W)
-			
-			# delta_p
-			#delta_p = np.dot(H_inv, I_jac) * T_IW_sum
-			delta_p_not_summed = np.zeros((27, 27, 3, 2))
-			for x in range(27):
-				for y in range(27):
-					delta_p_not_summed[x,y] = I_jac[x,y].T * T_IW[x,y]
-			delta_p = np.sum(delta_p_not_summed, axis=(0,1,3))#.reshape(3,1)
-	
-			# update p
-			#print(delta_p)
-			
-			# p  += delta_p
-			#print(p)
+			T_IW = (T-I_W).reshape(27, 27, 1, 1)
+			cv2.imshow('T_IW', T_IW.reshape(27,27).astype(uint8) * 255)
+			# cv2.waitKey(50)
+			delta_p = H_inv @ np.sum((I_jac * T_IW), axis=(0,1)).T
+
 			# update trans_x, trans_y, theta
 			self.translationX += delta_p[0]
 			self.translationY += delta_p[1]
 			self.theta        += delta_p[2]
-
+			#print(time.time() - t)
 			#check if points on the patch are outside the image
 			if (self.pos_x-self.patchHalfSizeFloored <= 0 and self.pos_x+self.patchHalfSizeFloored >= img.shape[1]):
 				if (self.pos_y-self.patchHalfSizeFloored <=0 and self.pos_y+self.patchHalfSizeFloored >= img.shape[0]):
-					print('point outside image')
 					return 1
-
 			# if length og delta_p is less than min_delta_length, stop optimazation
 			if(np.linalg.norm(p) < min_delta_length):
 				break
 
 		# Add new point to positionHistory to visualize tracking
-		self.positionHistory.append((self.pos_x, self.pos_y, self.theta))
-		print(self.pos_x, self.pos_y, self.theta)
+		self.positionHistory.append((self.pos_x, self.pos_y, float(self.theta)))
+		#print(self.pos_x, self.pos_y, float(self.theta))
 		if np.sum(T_IW) < max_error:
 			# return 0 if error = ok, length(delta_p) = ok in max_iterations
 			return 0
@@ -197,7 +152,7 @@ class KLTTracker:
 
 class PointTracker:
 
-	def __init__(self, max_points=10, tracking_patch_size=27):
+	def __init__(self, max_points=1, tracking_patch_size=27):
 		self.maxPoints = max_points
 		self.trackingPatchSize = tracking_patch_size
 		self.currentTrackers = []
@@ -278,7 +233,7 @@ class PointTracker:
 		img_dx = cv2.Scharr(img, cv2.CV_64FC1, 1, 0)    # scharr likt sobel ( finner gradient )
 		img_dy = cv2.Scharr(img, cv2.CV_64FC1, 0, 1)
 		img_grad = np.stack((img_dx, img_dy), axis=-1)
-		cv2.waitKey(0)
+		cv2.waitKey(1)
 		lost_track = []
 		tracker_return_values = defaultdict(int)
 		for klt in self.currentTrackers:
