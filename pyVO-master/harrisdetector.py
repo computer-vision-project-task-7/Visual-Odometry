@@ -38,8 +38,6 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, k=
 	I_yy = I_y**2
 
 	corners = []
-
-
 	summing_kernel = np.ones((patch_size, patch_size))
 
 	A_mat = cv2.filter2D(I_xx, -1, summing_kernel)
@@ -51,17 +49,48 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, k=
 	R_matrix = determinants - k*(traces)**2
 
 	threshold = np.max(R_matrix)/threshold_div_factor
-
 	corner_indices = np.argwhere(R_matrix>threshold)
 
-	for x, y in corner_indices:
-		# corners = list of tuples(float, np.ndarray)
-		corners.append(( R_matrix[x, y], np.array([x, y]) ))
-		#new_img.itemset((x, y, 0), 0)
-		#new_img.itemset((x, y, 1), 0)				trenger ikke disse
-		#new_img.itemset((x, y, 2), 255)
+
+	R_mat_biter = []
+	tiles = []
+	num_tiles = 100
+	height = 48
+	width = 64
+	best_indices = []
+	best_list = []
+	# splitting into 100 tiles
+	for i in range(10):		#tile i høyden
+		for j in range(10):	#tile i bredden
+			# aktuell bit av R
+			R_bit =  R_matrix[i*width:(i+1)*width , j*height:(j+1)*height]
+			above = []
+			# indices i biten av R som er over threshold
+			above_threshold =  np.argwhere(R_bit > threshold )
+			for v, u in above_threshold:
+				# append R-verdi og pixel-kooridnatene til bildet til alle over threhsold
+				above.append( (R_bit[v, u], (j*48 + u,  i*64 + v) ) )
+
+
+			if len(above) != 0:
+				#if it found any R-values above threshold
+				best = sorted(above, key=lambda x : x[0], reverse=True)
+				# append pixelkoordinaten til punkt med beste R-verdi i tilen
+				best_indices.append(best[0][1])
+				corners.append( (R_bit[v, u], np.array([best[0][1]])) )
+
+
+	#new_img = image.copy()
+	#new_img = cv2.cvtColor(new_img, cv2.COLOR_GRAY2RGB)
+
+	# attach these points to new_img
+	#for y,x in best_indices:
+	#	new_img.itemset( (x, y, 0), 0)
+	#	new_img.itemset( (x, y, 1), 0)
+	#	new_img.itemset( (x, y, 2), 255)
+
+	# sort corners
 	corners = sorted(corners, key=lambda x : x[0], reverse=True)
 
-
-	# need only return list of corners
-	return corners
+	#return corners[:80], new_img
+	return corners[:80]
