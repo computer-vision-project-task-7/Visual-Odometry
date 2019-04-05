@@ -70,7 +70,7 @@ class KLTTracker:
 		return float(self.initialPosition[1] + self.translationY)
 
 	def track_new_image(self, img: np.ndarray, img_grad: np.ndarray, max_iterations: int,
-						min_delta_length=2.5e-2, max_error=0.035) -> int:
+						min_delta_length=2.5e-2, max_error=0.0350) -> int: #max_error=0.035
 		"""
 		Tracks the KLT tracker on a new grayscale image. You will need the get_warped_patch function here.
 
@@ -95,6 +95,8 @@ class KLTTracker:
 		"""
 	
 		T = self.trackingPatch
+		cv2.imshow('Template', cv2.resize(T*255,(270,270)).astype(np.uint8))
+		
 		for iteration in range(max_iterations):	
 			#t = time.time()
 			p = np.array([self.pos_x, self.pos_y, self.theta])	
@@ -109,9 +111,9 @@ class KLTTracker:
 			jac[:,:,1,2] = grid_x * cos(self.theta) - grid_y * sin(self.theta)
 			# -----finne delta_p--------------
 			grad = get_warped_patch(img_grad, self.patchSize, p[0], p[1], p[2]).reshape(27,27,2,1).transpose(0,1,3,2)
+			
 			I_jac = grad @ jac
 			H = I_jac.transpose(0,1,3,2) @ I_jac
-			print(H.shape)
 			H = np.sum(H, axis=(0,1))
 			
 			if is_invertible(H) == False:	# check if Hessian is singular (if not invertible => singular)
@@ -121,30 +123,32 @@ class KLTTracker:
 			
 			# I(W(x;p))
 			I_W = get_warped_patch(img, self.patchSize, p[0], p[1], p[2])
-
+			
+			cv2.imshow('I_W', cv2.resize(I_W*255,(270,270)).astype(np.uint8))
 			# sum( T-I(w(x;p)))
 			T_IW = (T-I_W).reshape(27, 27, 1, 1)
-			cv2.imshow('T_IW', T_IW.reshape(27,27).astype(uint8) * 255)
-			# cv2.waitKey(50)
+			cv2.imshow('T_IW', cv2.resize(255*np.abs(T_IW).reshape(27,27),(270,270)).astype(uint8))
+			cv2.waitKey(5)
 			delta_p = H_inv @ np.sum((I_jac * T_IW), axis=(0,1)).T
 
 			# update trans_x, trans_y, theta
 			self.translationX += delta_p[0]
 			self.translationY += delta_p[1]
-			self.theta        += delta_p[2]
+			self.theta        += 0.1 * delta_p[2]
 			#print(time.time() - t)
 			#check if points on the patch are outside the image
 			if (self.pos_x-self.patchHalfSizeFloored <= 0 and self.pos_x+self.patchHalfSizeFloored >= img.shape[1]):
 				if (self.pos_y-self.patchHalfSizeFloored <=0 and self.pos_y+self.patchHalfSizeFloored >= img.shape[0]):
 					return 1
 			# if length og delta_p is less than min_delta_length, stop optimazation
-			if(np.linalg.norm(p) < min_delta_length):
+			if(np.linalg.norm(delta_p) < min_delta_length):
 				break
 
 		# Add new point to positionHistory to visualize tracking
 		self.positionHistory.append((self.pos_x, self.pos_y, float(self.theta)))
 		#print(self.pos_x, self.pos_y, float(self.theta))
-		if np.sum(T_IW) < max_error:
+		print('max error', np.sum(np.abs(T_IW)))
+		if np.sum(np.abs(T_IW)) < max_error:
 			# return 0 if error = ok, length(delta_p) = ok in max_iterations
 			return 0
 		else:
@@ -152,7 +156,7 @@ class KLTTracker:
 
 class PointTracker:
 
-	def __init__(self, max_points=1, tracking_patch_size=27):
+	def __init__(self, max_points=5, tracking_patch_size=27):
 		self.maxPoints = max_points
 		self.trackingPatchSize = tracking_patch_size
 		self.currentTrackers = []
