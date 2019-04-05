@@ -70,7 +70,7 @@ class KLTTracker:
 		return float(self.initialPosition[1] + self.translationY)
 
 	def track_new_image(self, img: np.ndarray, img_grad: np.ndarray, max_iterations: int,
-						min_delta_length=2.5e-2, max_error=0.0350) -> int: #max_error=0.035
+						min_delta_length=2.5e-6, max_error=60) -> int: #max_error=0.035
 		"""
 		Tracks the KLT tracker on a new grayscale image. You will need the get_warped_patch function here.
 
@@ -132,9 +132,9 @@ class KLTTracker:
 			delta_p = H_inv @ np.sum((I_jac * T_IW), axis=(0,1)).T
 
 			# update trans_x, trans_y, theta
-			self.translationX += delta_p[0]
-			self.translationY += delta_p[1]
-			self.theta        += 0.1 * delta_p[2]
+			self.translationX += 10 * delta_p[0]
+			self.translationY += 10 * delta_p[1]
+			self.theta        += delta_p[2]
 			#print(time.time() - t)
 			#check if points on the patch are outside the image
 			if (self.pos_x-self.patchHalfSizeFloored <= 0 and self.pos_x+self.patchHalfSizeFloored >= img.shape[1]):
@@ -147,7 +147,7 @@ class KLTTracker:
 		# Add new point to positionHistory to visualize tracking
 		self.positionHistory.append((self.pos_x, self.pos_y, float(self.theta)))
 		#print(self.pos_x, self.pos_y, float(self.theta))
-		print('max error', np.sum(np.abs(T_IW)))
+		#print('max error', np.sum(np.abs(T_IW)))
 		if np.sum(np.abs(T_IW)) < max_error:
 			# return 0 if error = ok, length(delta_p) = ok in max_iterations
 			return 0
