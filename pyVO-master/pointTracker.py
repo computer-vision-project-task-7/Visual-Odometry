@@ -71,7 +71,7 @@ class KLTTracker:
 		return float(self.initialPosition[1] + self.translationY)
 
 	def track_new_image(self, img: np.ndarray, img_grad: np.ndarray, max_iterations: int,
-						min_delta_length=2.5e-5, max_error=60) -> int: #max_error=0.035
+						min_delta_length=2.5e-2, max_error=60) -> int: #max_error=0.035
 		"""
 		Tracks the KLT tracker on a new grayscale image. You will need the get_warped_patch function here.
 
@@ -127,16 +127,16 @@ class KLTTracker:
 			delta_p = H_inv @ np.sum((I_jac * T_IW), axis=(0,1)).T
 
 			##### comment/uncomment this block to toggle visualization of patches #####
-			# cv2.imshow('Template', cv2.resize(T*255,(270,270)).astype(np.uint8))
-			# cv2.imshow('I(w)', cv2.resize(I_W*255,(270,270)).astype(np.uint8))
-			# cv2.imshow('T-I(w)', cv2.resize(255*np.abs(T_IW).reshape(27,27),(270,270)).astype(uint8))
-			# cv2.waitKey(200)
+			cv2.imshow('Template', cv2.resize(T*255,(270*2,270*2)).astype(np.uint8))
+			cv2.imshow('I(w)', cv2.resize(I_W*255,(270*2,270*2)).astype(np.uint8))
+			cv2.imshow('T-I(w)', cv2.resize(255*np.abs(T_IW).reshape(27,27),(270*2,270*2)).astype(uint8))
+			cv2.waitKey(100)
 			############################################################################
 
 			# update trans_x, trans_y, theta
-			self.translationX += 10 * delta_p[0]
-			self.translationY += 10 * delta_p[1]
-			self.theta        += 5 * delta_p[2]
+			self.translationX += 20 * delta_p[0]
+			self.translationY += 20 * delta_p[1]
+			self.theta        += 10 * delta_p[2]
 			#print(time.time() - t)
 			#check if points on the patch are outside the image
 			if (self.pos_x-self.patchHalfSizeFloored <= 0 and self.pos_x+self.patchHalfSizeFloored >= img.shape[1]):
@@ -148,7 +148,8 @@ class KLTTracker:
 
 		# Add new point to positionHistory to visualize tracking
 		self.positionHistory.append((self.pos_x, self.pos_y, float(self.theta)))
-		
+		#print(np.sum(np.abs(T_IW)))
+		# if np.abs(T_IW).any() < max_error:
 		if np.sum(np.abs(T_IW)) < max_error:
 			# return 0 if error = ok, length(delta_p) = ok in max_iterations
 			return 0
@@ -157,7 +158,7 @@ class KLTTracker:
 
 class PointTracker:
 
-	def __init__(self, max_points=5, tracking_patch_size=27):
+	def __init__(self, max_points=2, tracking_patch_size=27):
 		self.maxPoints = max_points
 		self.trackingPatchSize = tracking_patch_size
 		self.currentTrackers = []
@@ -183,7 +184,7 @@ class PointTracker:
 					x_to, y_to, _ = klt.positionHistory[i+1]
 					cv2.line(img_vis, (int(round(x_from)), int(round(y_from))), (int(round(x_to)), int(round(y_to))), 0, thickness=1, lineType=cv2.LINE_AA)
 
-		cv2.imshow("KLT Trackers", cv2.resize(img_vis, (0,0), fx=2, fy=2))
+		cv2.imshow("KLT Trackers", cv2.resize(img_vis, (0,0), fx=3, fy=3))
 		cv2.waitKey(1)
 
 

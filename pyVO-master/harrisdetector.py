@@ -12,7 +12,7 @@ def get_grads(img):
 	return grad_x, grad_y
 
 
-def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e3, k=0.06, blur_sigma=2.0) -> List[Tuple[float, np.ndarray]]:
+def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e3, k=0.06, blur_sigma=3.0) -> List[Tuple[float, np.ndarray]]:
 	"""
 	Return the harris corners detected in the image.
 
@@ -38,10 +38,7 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e3, k=
 	I_yy = I_y**2
 
 	corners = []
-	summing_kernel = np.ones((patch_size, patch_size))
-	# summing_kernel = np.array([[1,2,1],
-	# 							[2,4,2],
-	# 							[1,2,1]])/16
+	# summing_kernel = np.ones((patch_size, patch_size))
 	# A_mat = cv2.filter2D(I_xx, -1, summing_kernel)
 	# B_mat = cv2.filter2D(I_xy, -1, summing_kernel)
 	# C_mat = cv2.filter2D(I_yy, -1, summing_kernel)
@@ -55,15 +52,12 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e3, k=
 
 	threshold = np.max(R_matrix)/threshold_div_factor
 	corner_indices = np.argwhere(R_matrix>threshold)
-
-
-	R_mat_biter = []
-	tiles = []
-	num_tiles = 100
-	height = 48
-	width = 64
+	# num tiles in each direction
+	num_tiles = 10
+	# heigth, width of each tile
+	height = image.shape[0]//num_tiles #48
+	width = image.shape[1]//num_tiles#64
 	best_indices = []
-	best_list = []
 	# splitting into 100 tiles
 	for i in range(10):		#tile i høyden
 		for j in range(10):	#tile i bredden
@@ -74,7 +68,7 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e3, k=
 			above_threshold =  np.argwhere(R_bit > threshold )
 			for v, u in above_threshold:
 				# append R-verdi og pixel-kooridnatene til bildet til alle over threhsold
-				above.append( (R_bit[v, u], (j*48 + u,  i*64 + v) ) )
+				above.append( (R_bit[v, u], (j*height + u,  i*width + v) ) )
 
 
 			if len(above) != 0:
@@ -84,18 +78,5 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e3, k=
 				best_indices.append(best[0][1])
 				corners.append( (R_bit[v, u], best[0][1]) )
 
-
-	#new_img = image.copy()
-	#new_img = cv2.cvtColor(new_img, cv2.COLOR_GRAY2RGB)
-
-	# attach these points to new_img
-	#for y,x in best_indices:
-	#	new_img.itemset( (x, y, 0), 0)
-	#	new_img.itemset( (x, y, 1), 0)
-	#	new_img.itemset( (x, y, 2), 255)
-
-	# sort corners
 	corners = sorted(corners, key=lambda x : x[0], reverse=True)
-
-	#return corners[:80], new_img
 	return corners[:80]

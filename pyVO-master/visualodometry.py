@@ -11,7 +11,7 @@ from debug.PointsVisualizer import PointVisualizer
 #rgbd_dataset_freiburg1_rpy
 #rgbd_dataset_freiburg1_xyz
 #rgbd_dataset_freiburg1_rgb_calibration
-dl = DataLoader('dataset/rgbd_dataset_freiburg1_xyz') # Edit this string to load a different dataset
+dl = DataLoader('dataset/rgbd_dataset_freiburg1_rgb_calibration') # Edit this string to load a different dataset
 
 tracker = PointTracker()
 vis = PointVisualizer()
