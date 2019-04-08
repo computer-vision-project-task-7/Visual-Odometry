@@ -4,11 +4,14 @@ from dataloader import DataLoader
 from harrisdetector import harris_corners
 from pointTracker import PointTracker
 from pointProjection import project_points
-
+import time
 from debug.PointsVisualizer import PointVisualizer
 
 # pathen her vil ikke fungere når dette uploades til git. uploader ikke dataset
-dl = DataLoader('dataset/rgbd_dataset_freiburg1_rpy') # Edit this string to load a different dataset
+#rgbd_dataset_freiburg1_rpy
+#rgbd_dataset_freiburg1_xyz
+#rgbd_dataset_freiburg1_rgb_calibration
+dl = DataLoader('dataset/rgbd_dataset_freiburg1_xyz') # Edit this string to load a different dataset
 
 tracker = PointTracker()
 vis = PointVisualizer()
@@ -21,12 +24,12 @@ vis.set_estimated_transform(initial_orientation, initial_position)
 # Get points for the first frame
 grey_img = dl.get_greyscale()
 depth_img = dl.get_depth()
-points_and_response = harris_corners(grey_img)
+points_and_response = harris_corners(grey_img)     
 tracker.add_new_corners(grey_img, points_and_response)
 
 # Project the points in the first frame
-#previous_ids, previous_points = tracker.get_position_with_id()
-#previous_ids, previous_points = project_points(previous_ids, previous_points, depth_img)
+previous_ids, previous_points = tracker.get_position_with_id()
+#previous_ids, previous_points = project_points(previous_ids, previous_points, depth_img)  
 #vis.set_projected_points(previous_points, initial_orientation, initial_position)
 
 current_orientation = initial_orientation
@@ -41,19 +44,22 @@ while dl.has_next():
 
     # Get images
     grey_img = dl.get_greyscale()
-    depth_img = dl.get_depth()
+    
+    #depth_img = dl.get_depth()
 
     # Track current points on new image
     tracker.track_on_image(grey_img)
-    #tracker.visualize(grey_img)
+    tracker.visualize(grey_img)
 
     # Project tracked points
-    #ids, points = tracker.get_position_with_id()
+    ids, points = tracker.get_position_with_id()
     #ids, points = project_points(ids, points, depth_img)
     #vis.set_projected_points(points, gt_position, gt_orientation)
 
     # Replace lost points
+    #t = time.time()
     points_and_response = harris_corners(grey_img)
+    #print('harris fps: {:0.4f}'.format(1/(time.time()-t)))
     tracker.add_new_corners(grey_img, points_and_response)
 
     # Find transformation of the new frame

@@ -5,14 +5,14 @@ from typing import Tuple, List
 
 
 def get_grads(img):
-	grad_x = cv2.Sobel(img,cv2.CV_64F,1,0,ksize=3)
-	grad_y = cv2.Sobel(img,cv2.CV_64F,0,1,ksize=3)
-	# grad_x = cv2.Scharr(img,cv2.CV_64F,1,0)
-	# grad_y = cv2.Scharr(img,cv2.CV_64F,0,1)
+	# grad_x = cv2.Sobel(img,cv2.CV_64F,1,0,ksize=3)
+	# grad_y = cv2.Sobel(img,cv2.CV_64F,0,1,ksize=3)
+	grad_x = cv2.Scharr(img,cv2.CV_64F,1,0)
+	grad_y = cv2.Scharr(img,cv2.CV_64F,0,1)
 	return grad_x, grad_y
 
 
-def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, k=0.06, blur_sigma=2.0) -> List[Tuple[float, np.ndarray]]:
+def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e3, k=0.06, blur_sigma=2.0) -> List[Tuple[float, np.ndarray]]:
 	"""
 	Return the harris corners detected in the image.
 
@@ -39,10 +39,15 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, k=
 
 	corners = []
 	summing_kernel = np.ones((patch_size, patch_size))
-
-	A_mat = cv2.filter2D(I_xx, -1, summing_kernel)
-	B_mat = cv2.filter2D(I_xy, -1, summing_kernel)
-	C_mat = cv2.filter2D(I_yy, -1, summing_kernel)
+	# summing_kernel = np.array([[1,2,1],
+	# 							[2,4,2],
+	# 							[1,2,1]])/16
+	# A_mat = cv2.filter2D(I_xx, -1, summing_kernel)
+	# B_mat = cv2.filter2D(I_xy, -1, summing_kernel)
+	# C_mat = cv2.filter2D(I_yy, -1, summing_kernel)
+	A_mat = cv2.GaussianBlur(I_xx, (patch_size, patch_size), blur_sigma)
+	B_mat = cv2.GaussianBlur(I_xy, (patch_size, patch_size), blur_sigma)
+	C_mat = cv2.GaussianBlur(I_yy, (patch_size, patch_size), blur_sigma)
 
 	determinants = (A_mat * C_mat) - B_mat**2
 	traces = A_mat + C_mat
@@ -77,7 +82,7 @@ def harris_corners(image: np.ndarray, patch_size=3, threshold_div_factor=1e4, k=
 				best = sorted(above, key=lambda x : x[0], reverse=True)
 				# append pixelkoordinaten til punkt med beste R-verdi i tilen
 				best_indices.append(best[0][1])
-				corners.append( (R_bit[v, u], np.array([best[0][1]])) )
+				corners.append( (R_bit[v, u], best[0][1]) )
 
 
 	#new_img = image.copy()

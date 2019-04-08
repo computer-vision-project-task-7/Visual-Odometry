@@ -5,6 +5,7 @@ from typing import Tuple, List
 from math import sin, cos, pi, sqrt
 from collections import defaultdict
 import time
+import sys
 
 flann = FLANN()
 
@@ -70,7 +71,7 @@ class KLTTracker:
 		return float(self.initialPosition[1] + self.translationY)
 
 	def track_new_image(self, img: np.ndarray, img_grad: np.ndarray, max_iterations: int,
-						min_delta_length=2.5e-6, max_error=60) -> int: #max_error=0.035
+						min_delta_length=2.5e-5, max_error=60) -> int: #max_error=0.035
 		"""
 		Tracks the KLT tracker on a new grayscale image. You will need the get_warped_patch function here.
 
@@ -95,12 +96,11 @@ class KLTTracker:
 		"""
 	
 		T = self.trackingPatch
-		cv2.imshow('Template', cv2.resize(T*255,(270,270)).astype(np.uint8))
-		
+
 		for iteration in range(max_iterations):	
 			#t = time.time()
 			p = np.array([self.pos_x, self.pos_y, self.theta])	
-			jac = np.zeros((self.patchSize, self.patchSize, 2, 3)) #bruk mgrid
+			jac = np.zeros((self.patchSize, self.patchSize, 2, 3))
 			jac[:,:,0,0] = 1
 			jac[:,:,0,1] = 0
 			jac[:,:,1,0] = 0
@@ -118,23 +118,25 @@ class KLTTracker:
 			
 			if is_invertible(H) == False:	# check if Hessian is singular (if not invertible => singular)
 				return 2
-			# hessian invertert
 			H_inv = np.linalg.inv(H)
 			
 			# I(W(x;p))
 			I_W = get_warped_patch(img, self.patchSize, p[0], p[1], p[2])
-			
-			cv2.imshow('I_W', cv2.resize(I_W*255,(270,270)).astype(np.uint8))
-			# sum( T-I(w(x;p)))
 			T_IW = (T-I_W).reshape(27, 27, 1, 1)
-			cv2.imshow('T_IW', cv2.resize(255*np.abs(T_IW).reshape(27,27),(270,270)).astype(uint8))
-			cv2.waitKey(5)
+			
 			delta_p = H_inv @ np.sum((I_jac * T_IW), axis=(0,1)).T
+
+			##### comment/uncomment this block to toggle visualization of patches #####
+			# cv2.imshow('Template', cv2.resize(T*255,(270,270)).astype(np.uint8))
+			# cv2.imshow('I(w)', cv2.resize(I_W*255,(270,270)).astype(np.uint8))
+			# cv2.imshow('T-I(w)', cv2.resize(255*np.abs(T_IW).reshape(27,27),(270,270)).astype(uint8))
+			# cv2.waitKey(200)
+			############################################################################
 
 			# update trans_x, trans_y, theta
 			self.translationX += 10 * delta_p[0]
 			self.translationY += 10 * delta_p[1]
-			self.theta        += delta_p[2]
+			self.theta        += 5 * delta_p[2]
 			#print(time.time() - t)
 			#check if points on the patch are outside the image
 			if (self.pos_x-self.patchHalfSizeFloored <= 0 and self.pos_x+self.patchHalfSizeFloored >= img.shape[1]):
@@ -146,8 +148,7 @@ class KLTTracker:
 
 		# Add new point to positionHistory to visualize tracking
 		self.positionHistory.append((self.pos_x, self.pos_y, float(self.theta)))
-		#print(self.pos_x, self.pos_y, float(self.theta))
-		#print('max error', np.sum(np.abs(T_IW)))
+		
 		if np.sum(np.abs(T_IW)) < max_error:
 			# return 0 if error = ok, length(delta_p) = ok in max_iterations
 			return 0
@@ -182,8 +183,8 @@ class PointTracker:
 					x_to, y_to, _ = klt.positionHistory[i+1]
 					cv2.line(img_vis, (int(round(x_from)), int(round(y_from))), (int(round(x_to)), int(round(y_to))), 0, thickness=1, lineType=cv2.LINE_AA)
 
-		cv2.imshow("KLT Trackers", img_vis)
-
+		cv2.imshow("KLT Trackers", cv2.resize(img_vis, (0,0), fx=2, fy=2))
+		cv2.waitKey(1)
 
 
 	def add_new_corners(self, origin_image: np.ndarray, points_and_response_list:  List[Tuple[float, np.ndarray]],
@@ -228,16 +229,14 @@ class PointTracker:
 		points = points[:number_of_points_to_add]
 
 		for point in points:
-			# origin_image = Template T(x)
 			self.currentTrackers.append(KLTTracker(point, origin_image, self.trackingPatchSize, self.nextTrackerId))
 			self.nextTrackerId += 1
 
 	def track_on_image(self, img: np.ndarray, max_iterations=25) -> None:
-
-		img_dx = cv2.Scharr(img, cv2.CV_64FC1, 1, 0)    # scharr likt sobel ( finner gradient )
+		t = time.time()
+		img_dx = cv2.Scharr(img, cv2.CV_64FC1, 1, 0)    
 		img_dy = cv2.Scharr(img, cv2.CV_64FC1, 0, 1)
 		img_grad = np.stack((img_dx, img_dy), axis=-1)
-		cv2.waitKey(1)
 		lost_track = []
 		tracker_return_values = defaultdict(int)
 		for klt in self.currentTrackers:
@@ -248,8 +247,8 @@ class PointTracker:
 				lost_track.append(klt)
 
 		print(f"Tracked frame - remained: {tracker_return_values[0]}, hit border: {tracker_return_values[1]}, "
-			  f"singular_hessian: {tracker_return_values[2]}, large error: {tracker_return_values[3]}")
-
+			  f"singular_hessian: {tracker_return_values[2]}, large error: {tracker_return_values[3]}, fps: {1/(time.time()-t)}","\r", end='')
+		sys.stdout.flush()
 		for klt in lost_track:
 			self.currentTrackers.remove(klt)
 
