@@ -11,7 +11,7 @@ from debug.PointsVisualizer import PointVisualizer
 #rgbd_dataset_freiburg1_rpy
 #rgbd_dataset_freiburg1_xyz
 #rgbd_dataset_freiburg1_rgb_calibration
-dl = DataLoader('dataset/rgbd_dataset_freiburg1_rgb_calibration') # Edit this string to load a different dataset
+dl = DataLoader('dataset/rgbd_dataset_freiburg1_rpy') # Edit this string to load a different dataset
 
 tracker = PointTracker()
 vis = PointVisualizer()
@@ -24,12 +24,12 @@ vis.set_estimated_transform(initial_orientation, initial_position)
 # Get points for the first frame
 grey_img = dl.get_greyscale()
 depth_img = dl.get_depth()
-points_and_response = harris_corners(grey_img)     
+points_and_response = harris_corners(grey_img)
 tracker.add_new_corners(grey_img, points_and_response)
 
 # Project the points in the first frame
 previous_ids, previous_points = tracker.get_position_with_id()
-#previous_ids, previous_points = project_points(previous_ids, previous_points, depth_img)  
+#previous_ids, previous_points = project_points(previous_ids, previous_points, depth_img)
 #vis.set_projected_points(previous_points, initial_orientation, initial_position)
 
 current_orientation = initial_orientation
@@ -44,7 +44,7 @@ while dl.has_next():
 
     # Get images
     grey_img = dl.get_greyscale()
-    
+
     #depth_img = dl.get_depth()
 
     # Track current points on new image
